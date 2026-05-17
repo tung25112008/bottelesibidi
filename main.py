@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from config import TELEGRAM_TOKEN, ADMIN_ID
@@ -31,6 +32,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_msg, parse_mode='Markdown')
 
 def main():
+    # Fix event loop policy for Render/uvloop
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    
     keep_alive() # Khởi động web server chạy ngầm cho Render/Koyeb
     
     if not TELEGRAM_TOKEN:

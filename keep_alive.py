@@ -11,7 +11,7 @@ def home():
 
 def run():
     port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port, loop="asyncio")
 
 def keep_alive():
     t = threading.Thread(target=run)
