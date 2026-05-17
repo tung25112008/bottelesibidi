@@ -120,7 +120,7 @@ async def check_github_repos(context: ContextTypes.DEFAULT_TYPE):
 
 def setup(application):
     # Lên lịch chạy job kiểm tra RSS mỗi 30 phút (1800 giây)
-    application.job_queue.run_repeating(check_rss_feeds, interval=600, first=10)
+    application.job_queue.run_repeating(check_rss_feeds, interval=3600, first=10)
     
     # Lên lịch chạy job kiểm tra Github mỗi 12 tiếng (43200 giây)
-    application.job_queue.run_repeating(check_github_repos, interval=3600, first=20)
+    application.job_queue.run_repeating(check_github_repos, interval=43200, first=20)
