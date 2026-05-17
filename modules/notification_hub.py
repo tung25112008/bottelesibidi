@@ -2,6 +2,9 @@ import logging
 import feedparser
 import httpx
 import datetime
+import json
+import os
+import random
 from telegram.ext import ContextTypes
 from config import ADMIN_ID, GEMINI_API_KEY
 from google import genai
@@ -10,21 +13,42 @@ logger = logging.getLogger(__name__)
 
 # Danh sách các RSS feeds để theo dõi
 RSS_FEEDS = [
-    {"name": "Tin học (VnExpress)", "url": "https://vnexpress.net/rss/so-hoa.rss", "last_link": None}
+    {"name": "Tin học (VnExpress)", "url": "https://vnexpress.net/rss/so-hoa.rss"}
 ]
 
-# Lưu ID các repo Github đã thông báo để tránh gửi lại
-SEEN_REPOS = set()
+# Lưu state ra file để không bị reset khi khởi động lại (trên local)
+SEEN_REPOS_FILE = "seen_repos.json"
+RSS_STATE_FILE = "rss_state.json"
+
+def load_json(file_path, default_val):
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return default_val
+
+def save_json(file_path, data):
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except Exception as e:
+        logger.error(f"Error saving {file_path}: {e}")
+
+SEEN_REPOS = set(load_json(SEEN_REPOS_FILE, []))
 
 async def check_rss_feeds(context: ContextTypes.DEFAULT_TYPE):
     """Kiểm tra RSS feed định kỳ"""
+    state = load_json(RSS_STATE_FILE, {})
     for feed in RSS_FEEDS:
         try:
             parsed = feedparser.parse(feed["url"])
             if parsed.entries:
                 latest = parsed.entries[0]
-                if feed["last_link"] != latest.link:
-                    feed["last_link"] = latest.link
+                if state.get(feed["name"]) != latest.link:
+                    state[feed["name"]] = latest.link
+                    save_json(RSS_STATE_FILE, state)
                     msg = f"📰 *{feed['name']}*\n[{latest.title}]({latest.link})"
                     await context.bot.send_message(chat_id=ADMIN_ID, text=msg, parse_mode='Markdown')
         except Exception as e:
@@ -66,20 +90,28 @@ async def check_github_repos(context: ContextTypes.DEFAULT_TYPE):
                     items = data.get("items", [])
                     
                     if items:
-                        # Chỉ lấy repo đứng top 1 của mỗi skill để tránh spam
-                        top_repo = items[0] 
-                        repo_id = top_repo["id"]
+                        # Lấy top 10 repo, sau đó xáo trộn để random repo gửi mỗi lần check
+                        top_items = items[:10]
+                        random.shuffle(top_items)
                         
-                        if repo_id not in SEEN_REPOS:
+                        repo_to_send = None
+                        for item in top_items:
+                            if item["id"] not in SEEN_REPOS:
+                                repo_to_send = item
+                                break
+                        
+                        if repo_to_send:
+                            repo_id = repo_to_send["id"]
                             SEEN_REPOS.add(repo_id)
+                            save_json(SEEN_REPOS_FILE, list(SEEN_REPOS))
                             
-                            original_desc = top_repo['description'] or 'Không có thông tin mô tả.'
-                            analysis = await analyze_repo_with_gemini(top_repo['full_name'], original_desc)
+                            original_desc = repo_to_send['description'] or 'Không có thông tin mô tả.'
+                            analysis = await analyze_repo_with_gemini(repo_to_send['full_name'], original_desc)
                             
                             msg = (
                                 f"🐙 *Top Repo Github Mới ({skill.capitalize()})*\n"
-                                f"📦 Tên: [{top_repo['full_name']}]({top_repo['html_url']})\n"
-                                f"⭐ Stars: {top_repo['stargazers_count']}\n\n"
+                                f"📦 Tên: [{repo_to_send['full_name']}]({repo_to_send['html_url']})\n"
+                                f"⭐ Stars: {repo_to_send['stargazers_count']}\n\n"
                                 f"💡 *AI Phân tích:*\n{analysis}"
                             )
                             await context.bot.send_message(chat_id=ADMIN_ID, text=msg, parse_mode='Markdown', disable_web_page_preview=True)
