@@ -5,6 +5,7 @@ from config import TELEGRAM_TOKEN, ADMIN_ID
 
 # Import modules
 from modules import task_manager, server_monitor, notification_hub, utilities, study_finance
+from keep_alive import keep_alive
 
 # Setup logging
 logging.basicConfig(
@@ -30,6 +31,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_msg, parse_mode='Markdown')
 
 def main():
+    keep_alive() # Khởi động web server chạy ngầm cho Render/Koyeb
+    
     if not TELEGRAM_TOKEN:
         logger.error("Chưa cấu hình TELEGRAM_TOKEN trong .env!")
         return
