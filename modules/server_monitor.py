@@ -1,6 +1,7 @@
 import logging
 import psutil
 import os
+import sys
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, CallbackQueryHandler, ContextTypes
 from config import is_admin
@@ -29,13 +30,20 @@ async def server_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = f"📊 *Trạng thái hệ thống:*\n- CPU: `{cpu}%`\n- RAM: `{ram.percent}%` ({ram.used // (1024**2)}MB / {ram.total // (1024**2)}MB)"
         await query.edit_message_text(msg, parse_mode='Markdown')
     elif query.data == "svr_disk":
-        disk = psutil.disk_usage('/')
-        msg = f"💾 *Dung lượng ổ cứng:*\n- Trống: `{disk.free // (1024**3)}GB` / `{disk.total // (1024**3)}GB` ({disk.percent}% đã dùng)"
+        # Hỗ trợ Termux trên Android: kiểm tra thư mục home thay vì root '/' để tránh PermissionError
+        disk_path = '/data/data/com.termux/files/home' if 'PREFIX' in os.environ else '/'
+        try:
+            disk = psutil.disk_usage(disk_path)
+        except PermissionError:
+            disk_path = os.path.expanduser('~')
+            disk = psutil.disk_usage(disk_path)
+            
+        msg = f"💾 *Dung lượng lưu trữ ({disk_path}):*\n- Trống: `{disk.free // (1024**3)}GB` / `{disk.total // (1024**3)}GB` ({disk.percent}% đã dùng)"
         await query.edit_message_text(msg, parse_mode='Markdown')
     elif query.data == "svr_restart":
         await query.edit_message_text("🔄 Đang khởi động lại Bot...")
-        os.system("python main.py") # In a real environment, you'd use systemctl restart or exit and let PM2 handle it.
-        os._exit(0)
+        # Khởi động lại an toàn cho mọi môi trường (Termux/Windows/Linux)
+        os.execl(sys.executable, sys.executable, *sys.argv)
 
 def setup(application):
     application.add_handler(CommandHandler("server", server_command))

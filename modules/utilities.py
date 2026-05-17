@@ -2,6 +2,7 @@ import logging
 import json
 import base64
 import os
+import sys
 import subprocess
 from telegram import Update
 from telegram.ext import MessageHandler, filters, ContextTypes
@@ -25,7 +26,7 @@ async def utility_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             filename = "downloaded_video.mp4"
             if os.path.exists(filename): os.remove(filename)
             
-            cmd = ["yt-dlp", "-f", "best", "-o", filename, text]
+            cmd = [sys.executable, "-m", "yt_dlp", "-f", "best", "-o", filename, text]
             subprocess.run(cmd, check=True)
             
             if os.path.exists(filename):
